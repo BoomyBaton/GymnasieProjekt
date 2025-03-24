@@ -1,0 +1,100 @@
+<!-- App.svelte - Huvudkomponent för Svelte frontend -->
+<script>
+  import { onMount } from 'svelte';
+  
+  let leaderboard = [];
+  let loading = true;
+  let error = null;
+  
+  onMount(async () => {
+    try {
+      const response = await fetch('/api/leaderboard');
+      if (!response.ok) {
+        throw new Error('Kunde inte hämta data');
+      }
+      leaderboard = await response.json();
+    } catch (err) {
+      error = err.message;
+    } finally {
+      loading = false;
+    }
+  });
+</script>
+
+<main>
+  <h1>Leaderboard</h1>
+  
+  {#if loading}
+    <p>Laddar leaderboard...</p>
+  {:else if error}
+    <p class="error">Fel: {error}</p>
+  {:else if leaderboard.length === 0}
+    <p>Inga poäng registrerade ännu!</p>
+  {:else}
+    <table>
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Spelare</th>
+          <th>Poäng</th>
+          <th>Datum</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each leaderboard as entry, i}
+          <tr>
+            <td>{i + 1}</td>
+            <td>{entry.playerName}</td>
+            <td>{entry.score}</td>
+            <td>{new Date(entry.date).toLocaleDateString()}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  {/if}
+</main>
+
+<style>
+  main {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: 'Arial', sans-serif;
+  }
+  
+  h1 {
+    text-align: center;
+    color: #333;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+  }
+  
+  tr:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  tr:hover {
+    background-color: #f1f1f1;
+  }
+  
+  .error {
+    color: red;
+    text-align: center;
+  }
+</style>

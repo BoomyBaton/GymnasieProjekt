@@ -1,0 +1,97 @@
+// server.js - Huvudserverfil (Node.js och Express)
+import express from 'express';
+import cors from 'cors';
+import { json } from 'body-parser';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const app = express();
+const PORT = process.env.PORT || 8080;
+const DATA_FILE = path.join(__dirname, 'data', 'leaderboard.json');
+
+// Middleware
+app.use(cors());
+app.use(json());
+app.use(express.static('public'));
+
+// Säkerställ att datakatalogen finns
+async function ensureDataDir() {
+  const dataDir = path.join(__dirname, 'data');
+  try {
+    await fs.mkdir(dataDir, { recursive: true });
+  } catch (err) {
+    if (err.code !== 'EEXIST') {
+      console.error('Kunde inte skapa datakatalog:', err);
+    }
+  }
+}
+
+// Ladda leaderboard-data
+async function loadLeaderboard() {
+  try {
+    await ensureDataDir();
+    const data = await fs.readFile(DATA_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      // Filen finns inte, returnera tom array
+      return [];
+    }
+    console.error('Fel vid laddning av leaderboard:', err);
+    return [];
+  }
+}
+
+// Spara leaderboard-data
+async function saveLeaderboard(data) {
+  try {
+    await ensureDataDir();
+    await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Fel vid sparande av leaderboard:', err);
+  }
+}
+
+// API-endpoint för att hämta top 10 poäng
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const leaderboard = await loadLeaderboard();
+    // Sortera efter poäng (högst först) och ta top 10
+    const topScores = leaderboard
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+    res.json(topScores);
+  } catch (err) {
+    res.status(500).json({ error: 'Kunde inte hämta leaderboard' });
+  }
+});
+
+// API-endpoint för att lägga till en ny poäng
+app.post('/api/leaderboard', async (req, res) => {
+  try {
+    const { playerName, score } = req.body;
+    
+    // Validera indata
+    if (!playerName || typeof score !== 'number') {
+      return res.status(400).json({ error: 'Ogiltiga data' });
+    }
+    
+    const leaderboard = await loadLeaderboard();
+    leaderboard.push({ playerName, score, date: new Date().toISOString() });
+    
+    // Sortera och spara
+    await saveLeaderboard(leaderboard);
+    
+    res.status(201).json({ message: 'Poäng sparad' });
+  } catch (err) {
+    res.status(500).json({ error: 'Kunde inte spara poäng' });
+  }
+});
+
+// Starta servern
+app.listen(PORT, () => {
+  console.log(`Server igång på http://localhost:${PORT}`);
+});
